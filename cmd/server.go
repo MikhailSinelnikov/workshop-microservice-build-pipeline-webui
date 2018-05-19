@@ -15,6 +15,10 @@ import (
 	"net/http"
 	"time"
 
+	mwgrpc "github.com/grpc-ecosystem/go-grpc-middleware"
+	otgrpc "github.com/grpc-ecosystem/go-grpc-middleware/tracing/opentracing"
+	ot "github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go/ext"
 	"google.golang.org/grpc"
 
 	aggregatorpb "github.com/kublr/workshop-microservice-build-pipeline-webui/pkg/aggregator"
@@ -38,8 +42,18 @@ func main() {
 	}
 
 	// establish connection to aggregator
-	var opts []grpc.DialOption
-	opts = append(opts, grpc.WithInsecure())
+	opts := []grpc.DialOption{
+		// non-TLS connection
+		grpc.WithInsecure(),
+
+		// open tracing integration
+		grpc.WithUnaryInterceptor(mwgrpc.ChainUnaryClient(
+			otgrpc.UnaryClientInterceptor(),
+		)),
+		grpc.WithStreamInterceptor(mwgrpc.ChainStreamClient(
+			otgrpc.StreamClientInterceptor(),
+		)),
+	}
 	conn, err := grpc.Dial(*aggregatorAddr, opts...)
 	if err != nil {
 		log.Fatalf("fail to dial aggregator: %v", err)
@@ -70,11 +84,31 @@ const html = `
 `
 
 func handler(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// extract OpenTracing context from request
+	wireContext, err := ot.GlobalTracer().Extract(
+		ot.HTTPHeaders,
+		ot.HTTPHeadersCarrier(r.Header))
+	if err != nil {
+		log.Printf("Error extracting opentracing data: %v", err)
+	}
+	// Create the span referring to the RPC client if available.
+	// If wireContext == nil, a root span will be created.
+	appSpecificOperationName := "view-colors"
+	serverSpan := ot.StartSpan(
+		appSpecificOperationName,
+		ext.RPCServerOption(wireContext))
+
+	defer serverSpan.Finish()
+
+	ctx = ot.ContextWithSpan(ctx, serverSpan)
+
 	// call aggregator
-	clientCtx, clientCancel := context.WithTimeout(r.Context(), 2*time.Second)
+	ctx, clientCancel := context.WithTimeout(ctx, 2*time.Second)
 	defer clientCancel()
 
-	aggregateResponse, err := aggregatorClient.Aggregate(clientCtx, &aggregatorpb.AggregateRequest{})
+	aggregateResponse, err := aggregatorClient.Aggregate(ctx, &aggregatorpb.AggregateRequest{})
 	if err != nil {
 		aggregateResponse = &aggregatorpb.AggregateResponse{
 			Ranges: []*aggregatorpb.ColorRange{},
