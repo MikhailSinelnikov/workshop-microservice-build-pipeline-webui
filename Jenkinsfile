@@ -112,6 +112,16 @@ timestamps {
                                     sed -e 's^{{image}}^${dockerImageFullTag}^g' | \\
                                     sed -e 's^{{version}}^jenkins^g' | \\
                                     ~/.local/bin/istioctl --kubeconfig='${k8sConfig}' kube-inject -f - | \\
+                                    kubectl --kubeconfig='${k8sConfig}' --namespace '${namespace}' delete -f - || true
+
+                                cat kubernetes/deployment.yaml | \\
+                                    sed -e 's^{{image}}^${dockerImageFullTag}^g' | \\
+                                    sed -e 's^{{version}}^jenkins^g' | \\
+                                    ~/.local/bin/istioctl --kubeconfig='${k8sConfig}' kube-inject -f - | \\
+                                    kubectl --kubeconfig='${k8sConfig}' --namespace '${namespace}' apply -f -
+
+                                cat kubernetes/ingress.yaml | \\
+                                    sed -e 's^{{path}}^webui-${namespace}^g' | \\
                                     kubectl --kubeconfig='${k8sConfig}' --namespace '${namespace}' apply -f -
                             """
                         }
