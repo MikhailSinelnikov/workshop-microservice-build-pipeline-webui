@@ -77,7 +77,7 @@ const html = `
 	<body>
 		Example...
 		{{range $i, $r := .Ranges}}
-		{{$r.Hot}}<br/>
+		<div style="width: 25%; background-color: {{ if (gt $r.Hot 75) }}#ffaaaa{{else}}#aaaaff{{end}};">{{$r.Hot}}</div>
 		{{end}}
 	</body>
 </html>
