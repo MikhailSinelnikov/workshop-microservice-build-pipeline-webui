@@ -17,7 +17,7 @@ RUN make deps-update
 RUN make build
 
 # final stage
-FROM alpine:3.7
+FROM alpine:3.13.9
 COPY --from=build-env /go/src/github.com/kublr/workshop-microservice-build-pipeline-webui/target/server /opt/webui/server
 ENTRYPOINT ["/opt/webui/server"]
 EXPOSE 8080
